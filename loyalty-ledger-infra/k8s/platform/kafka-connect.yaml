@@ -33,6 +33,8 @@ spec:
         - name: connect
           image: quay.io/debezium/connect:3.7.0.Final
           env:
+            # The image defaults to -Xmx2G, which exceeds the 1Gi memory limit and gets OOMKilled.
+            - { name: HEAP_OPTS, value: "-Xms256M -Xmx640M" }
             - { name: BOOTSTRAP_SERVERS, value: "kafka:9092" }
             - { name: GROUP_ID, value: "loyalty-connect" }
             - { name: CONFIG_STORAGE_TOPIC, value: "connect_configs" }
