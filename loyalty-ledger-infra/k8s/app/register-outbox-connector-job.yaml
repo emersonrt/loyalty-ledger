@@ -1,0 +1,39 @@
+# Runs once the Deployment is healthy, that is, after the application's Liquibase
+# has created the outbox and the publication.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: register-outbox-connector
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: register
+          image: curlimages/curl:8.23.0
+          command: ["sh", "/config/register-connector.sh"]
+          env:
+            - name: CONNECT_URL
+              value: http://kafka-connect.platform.svc.cluster.local:8083
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          configMap:
+            name: outbox-connector

@@ -1,0 +1,8 @@
+# One folder per schema version; new changesets go in the current version or a new folder.
+databaseChangeLog:
+  - include: { file: db/changelog/v001/001-tenancy.sql }
+  - include: { file: db/changelog/v001/002-ledger.sql }
+  - include: { file: db/changelog/v001/003-campaigns.sql }
+  - include: { file: db/changelog/v001/004-outbox.sql }
+  - include: { file: db/changelog/v001/005-row-level-security.sql }
+  - include: { file: db/changelog/v001/006-grants.sql }

@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: platform
+
+# Secrets (postgres-credentials, redis-credentials, kafka-connect-credentials)
+# are created by Terraform and stay out of Git.
+resources:
+  - postgres.yaml
+  - kafka.yaml
+  - kafka-connect.yaml
+  - redis.yaml
+  - network-policies.yaml
+
+configMapGenerator:
+  - name: postgres-init
+    files:
+      - postgres/01-roles.sh
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: loyalty-platform

@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: loyalty-ledger
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    # No DDL and no table ownership, so RLS applies to this user.
+    url: jdbc:postgresql://localhost:5432/loyalty
+    username: ledger_app
+    password: ${LEDGER_APP_PASSWORD:ledger_app}
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    user: ledger_owner
+    password: ${LEDGER_OWNER_PASSWORD:ledger_owner}
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: loyalty-ledger
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      isolation-level: read-committed
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:redis}
+
+loyalty:
+  kafka:
+    topics:
+      partitions: 6
+      replicas: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loyalty Ledger Architecture</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1b; --muted: #5f5f5a; --border: #dcdcd6;
+    --in: #2f6fde; --proc: #8a4fd6; --store: #c4761c; --evt: #1f9a6a; --out: #d0455a;
+    --code-bg: #efefea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --surface: #1f1f1d; --text: #ececea; --muted: #a3a39e; --border: #3a3a37;
+      --in: #6f9cf0; --proc: #b18ae8; --store: #e5a050; --evt: #4fc797; --out: #ee7b8b;
+      --code-bg: #2a2a27;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161615; --surface: #1f1f1d; --text: #ececea; --muted: #a3a39e; --border: #3a3a37;
+    --in: #6f9cf0; --proc: #b18ae8; --store: #e5a050; --evt: #4fc797; --out: #ee7b8b;
+    --code-bg: #2a2a27;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.8rem; margin: 0 0 4px; }
+  h2 { font-size: 1.25rem; margin: 48px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; margin: 0 0 8px; }
+  p.lead { color: var(--muted); margin: 0 0 8px; }
+  .note { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--store);
+    padding: 10px 14px; border-radius: 6px; font-size: .92rem; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr) ; gap: 28px; position: relative; }
+  .col { display: flex; flex-direction: column; gap: 10px; position: relative; }
+  .col > .head { font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; }
+  .col:not(:last-child)::after { content: "→"; position: absolute; right: -22px; top: 50%;
+    font-size: 1.3rem; color: var(--muted); }
+  .box { background: var(--surface); border: 1px solid var(--border); border-top: 4px solid var(--c);
+    border-radius: 8px; padding: 10px 12px; }
+  .box b { display: block; }
+  .box small { color: var(--muted); display: block; line-height: 1.4; }
+  .c-in { --c: var(--in); } .c-proc { --c: var(--proc); } .c-store { --c: var(--store); }
+  .c-evt { --c: var(--evt); } .c-out { --c: var(--out); }
+  .head.c-in { color: var(--in); } .head.c-proc { color: var(--proc); }
+  .head.c-store { color: var(--store); } .head.c-out { color: var(--out); }
+
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding: 10px 12px 10px 52px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 12px; top: 10px; width: 28px; height: 28px;
+    border-radius: 50%; background: var(--c, var(--proc)); color: #fff; font-weight: 700;
+    display: grid; place-items: center; font-size: .9rem; }
+  .tag { display: inline-block; font-size: .72rem; font-weight: 600; padding: 1px 7px; border-radius: 10px;
+    border: 1px solid var(--c); color: var(--c); margin-left: 6px; vertical-align: 1px; }
+
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .card ul { margin: 0; padding-left: 18px; }
+
+  @media (max-width: 820px) {
+    .flow, .grid2 { grid-template-columns: 1fr; }
+    .col:not(:last-child)::after { content: "↓"; right: auto; left: 50%; top: auto; bottom: -26px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Loyalty Ledger: architecture and data flow</h1>
+<p class="lead">Multi-tenant points engine: ingests high-volume events and guarantees that no points are credited twice or lost.</p>
+<p class="note">The repository is still in planning. This is a <b>proposal</b> derived from the README; decisions marked <i>ADR</i> still need to be recorded in <code>loyalty-ledger-doc/adr/</code>.</p>
+
+<!-- ================================================================ -->
+<h2>1. Overview</h2>
+<div class="flow">
+  <div class="col">
+    <div class="head c-in">Inputs</div>
+    <div class="box c-in"><b>Tenant business events</b><small>Purchase completed, payment captured, order canceled (HTTP or Kafka)</small></div>
+    <div class="box c-in"><b>Customer/app commands</b><small>Check balance, statement, redeem reward</small></div>
+    <div class="box c-in"><b>Campaign configuration</b><small>Multiplier, validity, stock, segment (via admin API)</small></div>
+    <div class="box c-in"><b>Clock (scheduler)</b><small>Periodic point expiration trigger</small></div>
+  </div>
+  <div class="col">
+    <div class="head c-proc">Processing</div>
+    <div class="box c-proc"><b>Ingestion API</b><small>Validates schema and tenant, generates the idempotency key, publishes to Kafka partitioned by account</small></div>
+    <div class="box c-proc"><b>Rules Engine</b><small>Consumes events, evaluates active campaigns, and calculates how many points to grant or remove</small></div>
+    <div class="box c-proc"><b>Ledger Service</b><small>The only writer to the ledger. Stores double-entry records + outbox in the same transaction</small></div>
+    <div class="box c-proc"><b>Debezium (Kafka Connect)</b><small>CDC: reads inserts into the outbox table from the Postgres WAL and publishes to Kafka via the Outbox Event Router (at-least-once)</small></div>
+    <div class="box c-proc"><b>Expiration Job / Shadow Runner</b><small>Expires overdue lots; runs the new version in parallel and compares</small></div>
+  </div>
+  <div class="col">
+    <div class="head c-store">State</div>
+    <div class="box c-store"><b>PostgreSQL</b><small>Immutable (append-only) ledger, idempotency, outbox, point lots, campaigns</small></div>
+    <div class="box c-store"><b>Redis</b><small>Rules/campaign cache and balance projection for fast reads</small></div>
+    <div class="box c-evt"><b>Kafka</b><small>Inbound, internal event, outbound, and DLQ topics</small></div>
+  </div>
+  <div class="col">
+    <div class="head c-out">Outputs</div>
+    <div class="box c-out"><b>Balance and statement API</b><small>Balance derived from entries; statement with the origin of each point</small></div>
+    <div class="box c-out"><b>Domain events</b><small><code>ledger.transaction-posted</code> for notifications, CRM, analytics</small></div>
+    <div class="box c-out"><b>Reports</b><small>Reconciliation (debits = credits), shadow mode diff</small></div>
+    <div class="box c-out"><b>Telemetry</b><small>Metrics, OpenTelemetry traces, dashboards, and SLO alerts</small></div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2>2. Main flow: an order becomes points</h2>
+<ol class="steps">
+  <li style="--c: var(--in)"><b>Tenant sends the event</b> <span class="tag c-in">in</span><br>
+    <code>OrderCompleted { tenantId, eventId, customerId, amount, occurredAt }</code></li>
+  <li style="--c: var(--proc)"><b>Ingestion API validates and publishes</b><br>
+    Idempotency key = <code>tenantId + eventId</code>. Publishes to <code>loyalty.inbound</code> with partition key <code>tenantId:customerId</code>: all events of an account land on the same partition, in order, processed by a single consumer. Responds <code>202 Accepted</code>.</li>
+  <li style="--c: var(--proc)"><b>Rules Engine calculates the points</b><br>
+    Reads active campaigns from the cache (e.g. "2x on electronics until Nov 30, stock 10,000"). Result: <code>EarnPointsRequested { accountId, points: 240, campaignId, sourceEventId }</code>. If the campaign has stock, it decrements atomically.</li>
+  <li style="--c: var(--store)"><b>Ledger Service writes, in a single Postgres transaction</b> <span class="tag c-store">modifies</span><br>
+    1) inserts into <code>idempotency_keys</code> (if it already exists, stops here: duplicate ignored);
+    2) inserts the <code>transaction</code> and the two <code>ledger_entries</code> (debit/credit);
+    3) inserts the <code>point_lot</code> with <code>expires_at</code>;
+    4) inserts the row into <code>outbox</code>.<br>
+    Nothing is updated: balance is not a column, it is the sum of the entries.</li>
+  <li style="--c: var(--evt)"><b>Debezium publishes from the WAL</b> <span class="tag c-evt">event</span><br>
+    The commit creates a WAL entry; the Debezium connector (logical replication slot) captures the insert into <code>outbox</code> and the Outbox Event Router publishes <code>ledger.transaction-posted</code> with key <code>aggregateId</code> (= <code>accountId</code>). No polling, and in commit order. If the connector restarts before saving its offset, events are republished; consumers deduplicate by <code>transactionId</code>. The outbox can be cleaned periodically (or the insert followed by a delete in the same transaction).</li>
+  <li style="--c: var(--out)"><b>Projections and consumers react</b> <span class="tag c-out">out</span><br>
+    The balance projection in Redis is updated; external services (the "you earned 240 points" notification, analytics) consume the same event.</li>
+</ol>
+
+<!-- ================================================================ -->
+<h2>3. What comes in, what changes, what goes out (per operation)</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Operation</th><th>In</th><th>Modifies (Postgres)</th><th>Internal event</th><th>Out</th></tr></thead>
+  <tbody>
+    <tr><td><b>Earn</b></td><td><code>OrderCompleted</code></td><td>+ transaction, + 2 entries, + point_lot, + outbox, + idempotency_key</td><td><code>EarnPointsRequested</code></td><td><code>PointsEarned</code></td></tr>
+    <tr><td><b>Redeem</b></td><td><code>POST /redemptions</code> with <code>Idempotency-Key</code></td><td>+ transaction, + 2 entries, consumes lots (FIFO by expiration), + outbox</td><td><code>RedeemRequested</code></td><td><code>PointsRedeemed</code> or <code>409 insufficient balance</code></td></tr>
+    <tr><td><b>Reversal</b></td><td><code>OrderRefunded</code></td><td>+ transaction with inverse entries, referencing the original</td><td><code>ReversalRequested</code></td><td><code>PointsReversed</code></td></tr>
+    <tr><td><b>Expiration</b></td><td>scheduler tick</td><td>+ transaction moving the remainder of overdue lots to the expired account</td><td><code>ExpireLotsRequested</code></td><td><code>PointsExpired</code></td></tr>
+    <tr><td><b>Campaign</b></td><td><code>PUT /campaigns/{id}</code></td><td>upsert into campaigns (versioned), without touching the ledger</td><td><code>CampaignChanged</code></td><td>rules cache invalidated</td></tr>
+    <tr><td><b>Query</b></td><td><code>GET /accounts/{id}/balance</code></td><td>nothing</td><td>-</td><td>balance + points about to expire</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ================================================================ -->
+<h2>4. Kafka topics</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Topic</th><th>Producer</th><th>Consumer</th><th>Partition key</th></tr></thead>
+  <tbody>
+    <tr><td><code>loyalty.inbound</code></td><td>Ingestion API / tenants</td><td>Rules Engine (+ Shadow Runner)</td><td><code>tenantId:customerId</code></td></tr>
+    <tr><td><code>loyalty.ledger-commands</code></td><td>Rules Engine, Expiration Job</td><td>Ledger Service</td><td><code>accountId</code></td></tr>
+    <tr><td><code>ledger.transaction-posted</code></td><td>Debezium (outbox via CDC)</td><td>Balance projection, external systems</td><td><code>accountId</code></td></tr>
+    <tr><td><code>loyalty.campaigns</code></td><td>Campaign API</td><td>Rules Engine (invalidates cache)</td><td><code>tenantId</code></td></tr>
+    <tr><td><code>*.dlq</code></td><td>any consumer after N retries</td><td>operations / manual reprocessing</td><td>same as the source topic</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ================================================================ -->
+<h2>5. Double-entry ledger: example</h2>
+<p>Each transaction creates entries that sum to zero. A customer's balance is the <code>SUM(amount)</code> of the entries of their account.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Tx</th><th>Operation</th><th>Account</th><th class="num">Amount</th></tr></thead>
+  <tbody>
+    <tr><td>t1</td><td>Earn (order #881)</td><td><code>tenant-A:issuance</code></td><td class="num">−240</td></tr>
+    <tr><td>t1</td><td></td><td><code>tenant-A:customer-42</code></td><td class="num">+240</td></tr>
+    <tr><td>t2</td><td>Redeem ($10 coupon)</td><td><code>tenant-A:customer-42</code></td><td class="num">−100</td></tr>
+    <tr><td>t2</td><td></td><td><code>tenant-A:redemptions</code></td><td class="num">+100</td></tr>
+    <tr><td>t3</td><td>Expiration (lot from t1)</td><td><code>tenant-A:customer-42</code></td><td class="num">−140</td></tr>
+    <tr><td>t3</td><td></td><td><code>tenant-A:expired</code></td><td class="num">+140</td></tr>
+    <tr><td colspan="3"><b>Balance of customer-42</b> = 240 − 100 − 140</td><td class="num"><b>0</b></td></tr>
+  </tbody>
+</table></div>
+
+<!-- ================================================================ -->
+<h2>6. Failure guarantees</h2>
+<div class="grid2">
+  <div class="card"><h3>Duplicate event</h3><ul>
+    <li>Kafka delivers at-least-once; the same message may arrive twice.</li>
+    <li><code>idempotency_keys</code> with a UNIQUE constraint inside the same transaction as the entry: the second attempt fails on insert and is discarded.</li></ul></div>
+  <div class="card"><h3>Consumer dies midway</h3><ul>
+    <li>The offset is only committed after the Postgres transaction.</li>
+    <li>If it dies before the offset commit, it reprocesses and hits deduplication. If it dies before the database commit, nothing was written.</li></ul></div>
+  <div class="card"><h3>Broker down</h3><ul>
+    <li>The ledger keeps writing; the replication slot holds the WAL until Debezium can publish.</li>
+    <li>Risk: with the connector stopped for too long, the retained WAL fills the disk. Alert on slot lag (<code>pg_replication_slots</code>) and set <code>max_slot_wal_keep_size</code>.</li>
+    <li>There is never a "written to the database but event lost" case (no dual write).</li></ul></div>
+  <div class="card"><h3>Hot account (concurrency)</h3><ul>
+    <li>Partitioning by account serializes that account's writes without locks.</li>
+    <li>The synchronous path (redemption via API) uses optimistic locking on the account version. <i>ADR: compare both approaches.</i></li></ul></div>
+  <div class="card"><h3>Debezium vs custom relay <i>(ADR)</i></h3><ul>
+    <li><b>Debezium:</b> no polling, low latency, guaranteed commit order, industry standard. Cost: Kafka Connect, replication slot, and WAL to operate.</li>
+    <li><b>Polling relay</b> (<code>SELECT ... FOR UPDATE SKIP LOCKED</code>): Java code only, easy to test. Cost: interval latency, query load, and trickier ordering with multiple instances.</li></ul></div>
+</div>
+
+<!-- ================================================================ -->
+<h2>7. Mapping to the README phases</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Phase</th><th>Components on this page</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ledger Service, ledger tables, idempotency, balance/redemption API</td></tr>
+    <tr><td>2</td><td>Ingestion API, Kafka topics, outbox + Debezium (Kafka Connect), partitioning</td></tr>
+    <tr><td>3</td><td>Rules Engine, campaigns, expiration and reversal</td></tr>
+    <tr><td>4</td><td>Telemetry, k6/Gatling benchmarks, chaos tests for the guarantees in section 6</td></tr>
+    <tr><td>5</td><td>ADRs, diagrams, documented shadow mode</td></tr>
+  </tbody>
+</table></div>
+
+</main>
+</body>
+</html>

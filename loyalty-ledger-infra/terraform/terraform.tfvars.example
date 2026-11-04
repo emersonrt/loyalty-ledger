@@ -1,0 +1,5 @@
+# cp terraform.tfvars.example terraform.tfvars
+git_repo_url = "https://github.com/<your-user>/loyalty-ledger.git"
+
+# To prove the block works: use a CIDR that is not yours and run `make cluster` -> 403.
+# allowed_source_cidrs = ["172.18.0.1/32"]

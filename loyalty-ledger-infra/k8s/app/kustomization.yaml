@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: loyalty
+
+# Secrets (ledger-db, ledger-redis) are created by Terraform.
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - register-outbox-connector-job.yaml
+  - network-policies.yaml
+
+configMapGenerator:
+  - name: outbox-connector
+    files:
+      - debezium/outbox-connector.json
+      - debezium/register-connector.sh
+
+images:
+  - name: loyalty-ledger
+    newTag: dev
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: loyalty-ledger
