@@ -17,6 +17,19 @@ resource "helm_release" "traefik" {
       isDefaultClass = true
     }
 
+    # A NodePort Service has no load balancer status to copy, and Argo CD only considers an
+    # Ingress healthy once its status is set, which PostSync hooks depend on.
+    providers = {
+      kubernetesIngress = {
+        publishedService = {
+          enabled = false
+        }
+        ingressEndpoint = {
+          ip = "127.0.0.1"
+        }
+      }
+    }
+
     service = {
       spec = {
         type = "NodePort"

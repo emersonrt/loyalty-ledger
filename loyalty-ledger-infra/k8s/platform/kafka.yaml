@@ -35,6 +35,8 @@ spec:
         - name: kafka
           image: apache/kafka:4.3.2
           env:
+            # The image defaults to a 1G heap, which leaves no room under the 1Gi memory limit.
+            - { name: KAFKA_HEAP_OPTS, value: "-Xms512M -Xmx512M" }
             - { name: CLUSTER_ID, value: "4L6g3nShT-eMCtK--X86sw" }
             - { name: KAFKA_NODE_ID, value: "1" }
             - { name: KAFKA_PROCESS_ROLES, value: "broker,controller" }
@@ -62,6 +64,8 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
+            # The image declares a named user, and runAsNonRoot can only verify a numeric UID.
+            runAsUser: 1000
           volumeMounts:
             - name: data
               mountPath: /var/lib/kafka/data
